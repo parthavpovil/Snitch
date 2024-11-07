@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
+import { ethers, BrowserProvider } from 'ethers';
 import { uploadToIPFS } from '../services/ipfs';
+import { CONTRACT_ADDRESS } from '../contracts/config';
+import ContractABI from '../contracts/SnitchPlatform.json';
 
 const categories = [
   { id: 'police', label: 'Police' },
@@ -7,7 +10,7 @@ const categories = [
   { id: 'income-tax', label: 'Income Tax' }
 ];
 
-export const CreateSnitchModal = ({ isOpen, onClose, onSubmit }) => {
+export const CreateSnitchModal = ({ isOpen, onClose }) => {
   const [formData, setFormData] = useState({
     description: '',
     category: '',
@@ -15,65 +18,83 @@ export const CreateSnitchModal = ({ isOpen, onClose, onSubmit }) => {
     location: '',
     media: null
   });
+
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadError, setUploadError] = useState('');
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      // Validate file size (e.g., 10MB limit)
-      if (file.size > 10 * 1024 * 1024) {
-        setUploadError('File size must be less than 10MB');
-        return;
-      }
-      
-      // Validate file type
-      if (!file.type.match('image.*|video.*')) {
-        setUploadError('Only image and video files are allowed');
-        return;
-      }
-
-      setFormData(prev => ({ ...prev, media: file }));
-      setUploadError('');
-    }
-  };
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [txHash, setTxHash] = useState('');
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setUploadError('');
-    
+    setError('');
+    setIsSubmitting(true);
+
     try {
+      // 1. Upload media to IPFS if exists
       let mediaCID = '';
-      
       if (formData.media) {
         setIsUploading(true);
-        setUploadProgress(0);
-        
-        // Simulate upload progress
-        const progressInterval = setInterval(() => {
-          setUploadProgress(prev => Math.min(prev + 10, 90));
-        }, 500);
-
-        // Upload to IPFS
         mediaCID = await uploadToIPFS(formData.media);
-        
-        clearInterval(progressInterval);
-        setUploadProgress(100);
+        setIsUploading(false);
       }
 
-      // Submit form data with CID
-      await onSubmit({ ...formData, mediaCID });
+      // 2. Get contract instance
+      if (!window.ethereum) throw new Error('Please install MetaMask');
+      await window.ethereum.request({ method: 'eth_requestAccounts' });
+      const provider = new BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, ContractABI.abi, signer);
+
+      // 3. Submit transaction based on category
+      let transaction;
+      switch (formData.category.toLowerCase()) {
+        case 'police':
+          transaction = await contract.submitPoliceReport(
+            formData.description,
+            formData.category,
+            formData.location || '',
+            formData.city,
+            mediaCID
+          );
+          break;
+
+        case 'customs':
+          transaction = await contract.submitCustomsReport(
+            formData.description,
+            formData.category,
+            formData.location || '',
+            formData.city,
+            mediaCID
+          );
+          break;
+
+        case 'income-tax':
+          transaction = await contract.submitIncomeTaxReport(
+            formData.description,
+            formData.category,
+            formData.location || '',
+            formData.city,
+            mediaCID
+          );
+          break;
+
+        default:
+          throw new Error('Invalid category selected');
+      }
+
+      // 4. Wait for transaction to be mined
+      const receipt = await transaction.wait();
+      setTxHash(receipt.hash);
+
+      // 5. Show success message and close modal
+      alert('Snitch created successfully!');
       onClose();
-    } catch (error) {
-      setUploadError(error.message);
+
+    } catch (err) {
+      console.error('Error:', err);
+      setError(err.message || 'Failed to create snitch');
     } finally {
-      setIsUploading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -81,23 +102,20 @@ export const CreateSnitchModal = ({ isOpen, onClose, onSubmit }) => {
 
   return (
     <div className="fixed inset-0 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto border border-gray-200">
-        {/* Header with gradient */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-6 rounded-t-2xl">
-          <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-bold text-white">Create a Snitch</h2>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-800">Create a Snitch</h2>
             <button 
               onClick={onClose}
-              className="text-white/80 hover:text-white transition-colors"
+              className="text-gray-500 hover:text-gray-700"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
-        </div>
 
-        <div className="p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Description */}
             <div className="space-y-2">
@@ -105,13 +123,13 @@ export const CreateSnitchModal = ({ isOpen, onClose, onSubmit }) => {
                 Description *
               </label>
               <textarea
-                name="description"
                 required
-                rows="4"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                placeholder="Describe the situation in detail..."
+                name="description"
                 value={formData.description}
-                onChange={handleChange}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                rows="4"
+                placeholder="Describe the situation..."
               />
             </div>
 
@@ -121,23 +139,16 @@ export const CreateSnitchModal = ({ isOpen, onClose, onSubmit }) => {
                 Category *
               </label>
               <select
-                name="category"
                 required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all appearance-none bg-white"
+                name="category"
                 value={formData.category}
-                onChange={handleChange}
-                style={{
-                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236B7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
-                  backgroundPosition: 'right 1rem center',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundSize: '1.5em 1.5em',
-                  paddingRight: '2.5rem'
-                }}
+                onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">Select a category</option>
-                {categories.map(category => (
-                  <option key={category.id} value={category.id}>
-                    {category.label}
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.label}
                   </option>
                 ))}
               </select>
@@ -149,13 +160,13 @@ export const CreateSnitchModal = ({ isOpen, onClose, onSubmit }) => {
                 City *
               </label>
               <input
+                required
                 type="text"
                 name="city"
-                required
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                placeholder="Enter city name"
                 value={formData.city}
-                onChange={handleChange}
+                onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter city name"
               />
             </div>
 
@@ -167,72 +178,51 @@ export const CreateSnitchModal = ({ isOpen, onClose, onSubmit }) => {
               <input
                 type="text"
                 name="location"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                placeholder="Enter specific location"
                 value={formData.location}
-                onChange={handleChange}
+                onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Enter specific location"
               />
             </div>
 
-            {/* Media Upload with Progress */}
+            {/* Media Upload */}
             <div className="space-y-2">
               <label className="block text-sm font-semibold text-gray-900">
                 Media <span className="text-gray-500 font-normal">(Optional)</span>
               </label>
-              <div className="relative">
-                <input
-                  type="file"
-                  name="media"
-                  accept="image/*,video/*"
-                  onChange={handleFileChange}
-                  disabled={isUploading}
-                  className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                />
-              </div>
-              
-              {/* Upload Progress */}
-              {isUploading && (
-                <div className="mt-2">
-                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-blue-500 transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
-                    />
-                  </div>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Uploading... {uploadProgress}%
-                  </p>
-                </div>
-              )}
-
-              {/* Error Message */}
-              {uploadError && (
-                <p className="text-sm text-red-600 mt-1">
-                  {uploadError}
-                </p>
-              )}
-
-              <p className="text-sm text-gray-500">
-                Supported formats: Images and Videos (Max size: 10MB)
-              </p>
+              <input
+                type="file"
+                onChange={(e) => setFormData(prev => ({ ...prev, media: e.target.files[0] }))}
+                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                accept="image/*,video/*"
+              />
             </div>
 
-            {/* Submit Buttons */}
+            {/* Error Message */}
+            {error && (
+              <div className="p-4 bg-red-50 rounded-xl">
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            )}
+
+            {/* Submit Button */}
             <div className="flex justify-end space-x-4 pt-4 border-t">
               <button
                 type="button"
                 onClick={onClose}
-                disabled={isUploading}
+                disabled={isUploading || isSubmitting}
                 className="px-6 py-2.5 text-gray-700 font-semibold hover:bg-gray-100 rounded-xl transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={isUploading}
+                disabled={isUploading || isSubmitting}
                 className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-blue-800 transform hover:shadow-lg transition-all duration-200 disabled:opacity-50"
               >
-                {isUploading ? 'Uploading...' : 'Create Snitch'}
+                {isUploading ? 'Uploading to IPFS...' : 
+                 isSubmitting ? 'Creating Snitch...' : 
+                 'Create Snitch'}
               </button>
             </div>
           </form>
