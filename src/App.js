@@ -1,25 +1,46 @@
-import logo from './logo.svg';
-import './App.css';
+import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { GlobalStyle } from './styles/GlobalStyle';
+import HomeScreen from './screens/HomeScreen';
+import DashboardScreen from './screens/DashboardScreen';
 
-function App() {
+export default function App() {
+  const [walletAddress, setWalletAddress] = useState('');
+
+  const handleDisconnect = () => {
+    setWalletAddress('');
+  };
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <>
+      <GlobalStyle />
+      <Router>
+        <Routes>
+          <Route 
+            path="/" 
+            element={
+              !walletAddress ? (
+                <HomeScreen onWalletConnect={setWalletAddress} />
+              ) : (
+                <Navigate to="/dashboard" replace />
+              )
+            } 
+          />
+          <Route 
+            path="/dashboard" 
+            element={
+              walletAddress ? (
+                <DashboardScreen 
+                  walletAddress={walletAddress}
+                  onDisconnect={handleDisconnect}
+                />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            } 
+          />
+        </Routes>
+      </Router>
+    </>
   );
 }
-
-export default App;
