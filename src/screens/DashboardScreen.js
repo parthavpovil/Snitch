@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Navbar } from '../components/Navbar';
+import { CreateSnitchModal } from '../components/CreateSnitchModal';
 
 // Only background has gradient
 const GradientBackground = styled.div`
@@ -31,6 +32,14 @@ const GradientBackground = styled.div`
 `;
 
 const DashboardScreen = ({ walletAddress, onDisconnect }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleCreateSnitch = (formData) => {
+    // Handle the form submission here
+    console.log('New Snitch Data:', formData);
+    // You can add API call here to save the data
+  };
+
   return (
     <GradientBackground>
       {/* White Navbar */}
@@ -55,15 +64,18 @@ const DashboardScreen = ({ walletAddress, onDisconnect }) => {
               <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
                 Start by creating a new snitch to track and monitor blockchain activities
               </p>
-              <button className="
-                bg-blue-500 hover:bg-blue-600
-                text-white
-                px-8 py-4 rounded-xl
-                font-bold text-lg
-                transform transition-all duration-300
-                hover:scale-105 hover:shadow-xl
-                active:scale-100
-              ">
+              <button 
+                onClick={() => setIsModalOpen(true)}
+                className="
+                  bg-blue-500 hover:bg-blue-600 
+                  text-white
+                  px-8 py-4 rounded-xl
+                  font-bold text-lg
+                  transform transition-all duration-300
+                  hover:scale-105 hover:shadow-xl
+                  active:scale-100
+                "
+              >
                 Make a Snitch
               </button>
             </div>
@@ -96,6 +108,12 @@ const DashboardScreen = ({ walletAddress, onDisconnect }) => {
           </div>
         </div>
       </div>
+
+      <CreateSnitchModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handleCreateSnitch}
+      />
     </GradientBackground>
   );
 };

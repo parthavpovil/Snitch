@@ -29,7 +29,7 @@ export const Navbar = ({ walletAddress, onDisconnect }) => {
   return (
     <nav className="flex justify-between items-center py-4 px-6">
       <div className="text-2xl font-bold text-blue-600">
-        SNITCH
+        Snitch.io
       </div>
       <div className="relative" ref={dropdownRef}>
         <button 

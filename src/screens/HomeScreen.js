@@ -51,12 +51,14 @@ const HomeScreen = ({ onWalletConnect }) => {
     <GradientBackground>
       <div className="min-h-screen flex items-center justify-center p-6 backdrop-blur-sm">
         <div className="max-w-md w-full space-y-8 text-center">
-          {/* Logo Section with subtle shadow */}
+          {/* Updated Logo Section */}
           <div className="transform transition-all duration-500 hover:scale-105">
             <h1 className="text-6xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-700 via-blue-500 to-blue-400 drop-shadow-md">
-              SNITCH
+              Snitch.io
             </h1>
-            <p className="mt-2 text-gray-700 font-medium">Your Crypto Companion</p>
+            <p className="mt-2 text-gray-700 font-medium">
+              Your Snitching Companion
+            </p>
           </div>
 
           {/* Glass effect card container - centered content */}
