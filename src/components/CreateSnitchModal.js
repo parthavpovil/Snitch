@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { ethers, BrowserProvider } from 'ethers';
+import { ethers } from 'ethers';
 import { uploadToIPFS } from '../services/ipfs';
 import { CONTRACT_ADDRESS } from '../contracts/config';
 import ContractABI from '../contracts/SnitchPlatform.json';
 
-const categories = [
-  { id: 'police', label: 'Police' },
-  { id: 'customs', label: 'Customs' },
-  { id: 'income-tax', label: 'Income Tax' }
+// Define categories
+const CATEGORIES = [
+  { value: 'police', label: 'Police' },
+  { value: 'customs', label: 'Customs' },
+  { value: 'income-tax', label: 'Income Tax' }
 ];
 
 export const CreateSnitchModal = ({ isOpen, onClose }) => {
@@ -21,7 +22,6 @@ export const CreateSnitchModal = ({ isOpen, onClose }) => {
 
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [txHash, setTxHash] = useState('');
   const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
@@ -30,7 +30,7 @@ export const CreateSnitchModal = ({ isOpen, onClose }) => {
     setIsSubmitting(true);
 
     try {
-      // 1. Upload media to IPFS if exists
+      // 1. Handle media upload
       let mediaCID = '';
       if (formData.media) {
         setIsUploading(true);
@@ -41,11 +41,11 @@ export const CreateSnitchModal = ({ isOpen, onClose }) => {
       // 2. Get contract instance
       if (!window.ethereum) throw new Error('Please install MetaMask');
       await window.ethereum.request({ method: 'eth_requestAccounts' });
-      const provider = new BrowserProvider(window.ethereum);
+      const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, ContractABI.abi, signer);
 
-      // 3. Submit transaction based on category
+      // 3. Submit to contract
       let transaction;
       switch (formData.category.toLowerCase()) {
         case 'police':
@@ -53,7 +53,7 @@ export const CreateSnitchModal = ({ isOpen, onClose }) => {
             formData.description,
             formData.category,
             formData.location || '',
-            formData.city,
+            formData.city || '',
             mediaCID
           );
           break;
@@ -63,7 +63,7 @@ export const CreateSnitchModal = ({ isOpen, onClose }) => {
             formData.description,
             formData.category,
             formData.location || '',
-            formData.city,
+            formData.city || '',
             mediaCID
           );
           break;
@@ -73,7 +73,7 @@ export const CreateSnitchModal = ({ isOpen, onClose }) => {
             formData.description,
             formData.category,
             formData.location || '',
-            formData.city,
+            formData.city || '',
             mediaCID
           );
           break;
@@ -82,17 +82,16 @@ export const CreateSnitchModal = ({ isOpen, onClose }) => {
           throw new Error('Invalid category selected');
       }
 
-      // 4. Wait for transaction to be mined
+      // 4. Wait for confirmation
       const receipt = await transaction.wait();
-      setTxHash(receipt.hash);
+      console.log('Transaction receipt:', receipt);
 
-      // 5. Show success message and close modal
-      alert('Snitch created successfully!');
+      alert('Report submitted successfully!');
       onClose();
 
     } catch (err) {
       console.error('Error:', err);
-      setError(err.message || 'Failed to create snitch');
+      setError(err.message || 'Failed to submit report');
     } finally {
       setIsSubmitting(false);
     }
@@ -146,8 +145,8 @@ export const CreateSnitchModal = ({ isOpen, onClose }) => {
                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">Select a category</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>
+                {CATEGORIES.map(cat => (
+                  <option key={cat.value} value={cat.value}>
                     {cat.label}
                   </option>
                 ))}
@@ -230,4 +229,6 @@ export const CreateSnitchModal = ({ isOpen, onClose }) => {
       </div>
     </div>
   );
-}; 
+};
+
+export default CreateSnitchModal;
